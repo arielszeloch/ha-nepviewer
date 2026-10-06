@@ -1,0 +1,86 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "NEPViewer",
+        "description": "Log in with your NEPViewer (user.nepviewer.com) account.",
+        "data": {
+          "email": "E-mail",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate",
+        "description": "Enter the current NEPViewer password.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid e-mail or password",
+      "cannot_connect": "Cannot connect to NEPViewer",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This account is already configured",
+      "reauth_successful": "Re-authentication successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "NEPViewer",
+        "data": {
+          "scan_interval": "Polling interval (s)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "power": {
+        "name": "Power"
+      },
+      "energy_today": {
+        "name": "Energy today"
+      },
+      "energy_total": {
+        "name": "Energy total"
+      },
+      "status": {
+        "name": "Status"
+      },
+      "alert": {
+        "name": "Alert"
+      },
+      "last_update": {
+        "name": "Last report"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "ac_voltage": {
+        "name": "AC voltage"
+      },
+      "ac_frequency": {
+        "name": "AC frequency"
+      },
+      "dc_voltage": {
+        "name": "DC voltage"
+      },
+      "dc_current": {
+        "name": "DC current"
+      },
+      "pv_power": {
+        "name": "PV{pv} power"
+      },
+      "pv_energy_today": {
+        "name": "PV{pv} energy today"
+      },
+      "pv_energy_total": {
+        "name": "PV{pv} energy total"
+      }
+    }
+  }
+}
