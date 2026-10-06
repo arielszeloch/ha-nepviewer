@@ -1,0 +1,17 @@
+{
+  "domain": "nepviewer",
+  "name": "NEPViewer",
+  "codeowners": [
+    "@arielszeloch"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/arielszeloch/ha-nepviewer",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/arielszeloch/ha-nepviewer/issues",
+  "loggers": [
+    "custom_components.nepviewer"
+  ],
+  "requirements": [],
+  "version": "0.1.0"
+}
