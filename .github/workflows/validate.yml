@@ -7,6 +7,27 @@ on:
 
 jobs:
   hassfest:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: hacs/action@main
+        with:
+          category: integration
+          ignore: brands
+name: Validate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  hassfest:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
