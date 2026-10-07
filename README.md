@@ -33,6 +33,8 @@ Temperature / AC / DC readings come from the inverter's latest report of the cur
 
 Copy `custom_components/nepviewer` into your HA `config/custom_components/` folder and restart.
 
+The integration ships its own icon and logo (`custom_components/nepviewer/brand/`); they are shown in Home Assistant 2026.3 or newer.
+
 ## Configuration
 
 **Settings → Devices & services → Add integration → NEPViewer**, then enter your NEPViewer e-mail and password.
@@ -69,4 +71,4 @@ Integracja HA dla mikroinwerterów NEP przez chmurę NEPViewer. Instalacja przez
 
 ## License
 
-MIT
+MIT. The NEP name and logo are trademarks of Northern Electric & Power Co., Ltd. and are used only to identify the devices this integration works with.
