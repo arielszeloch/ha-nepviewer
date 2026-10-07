@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, tzinfo
 import logging
 from typing import Any
 
@@ -53,11 +53,27 @@ def to_w(value: Any, unit: Any) -> float | None:
     return v
 
 
-def _ts(value: Any) -> datetime | None:
+def _ts(value: Any, tz: tzinfo) -> datetime | None:
+    """Convert NEP's timestamp to an aware datetime.
+
+    NEP encodes the plant's *local* wall-clock time as if it were UTC
+    (e.g. a report at 17:12 Warsaw time comes back as 17:12 UTC), so the
+    epoch is read as a naive time and then placed in the plant's timezone.
+    """
     v = _num(value)
     if not v:
         return None
-    return datetime.fromtimestamp(v, tz=timezone.utc)
+    naive = datetime.fromtimestamp(v, tz=timezone.utc).replace(tzinfo=None)
+    return naive.replace(tzinfo=tz)
+
+
+def site_timezone(raw_site: dict[str, Any]) -> tzinfo:
+    """Plant timezone from the API if present, otherwise HA's timezone."""
+    name = raw_site.get("timezone") or raw_site.get("timeZone")
+    if isinstance(name, str) and name:
+        if (tz := dt_util.get_time_zone(name)) is not None:
+            return tz
+    return dt_util.get_default_time_zone()
 
 
 @dataclass
@@ -129,7 +145,7 @@ class NepData:
         return None
 
 
-def parse_inverter(sid: str, raw: dict[str, Any]) -> NepInverter:
+def parse_inverter(sid: str, raw: dict[str, Any], tz: tzinfo) -> NepInverter:
     sn = str(raw.get("sn", "")).upper()
     inv = NepInverter(
         sn=sn,
@@ -154,7 +170,7 @@ def parse_inverter(sid: str, raw: dict[str, Any]) -> NepInverter:
             energy_total=to_kwh(m.get("totalPower"), m.get("totalPowerUnit")),
         )
         latest = max(latest, _num(m.get("lastUpdateTime")) or 0)
-    inv.last_update = _ts(latest)
+    inv.last_update = _ts(latest, tz)
     return inv
 
 
@@ -185,8 +201,9 @@ class NepViewerCoordinator(DataUpdateCoordinator[NepData]):
                 if not sid:
                     continue
                 site = NepSite(sid=sid, name=rs.get("siteName") or sid)
+                tz = site_timezone(rs)
                 for raw_inv in await self.api.get_site_modules(sid):
-                    inv = parse_inverter(sid, raw_inv)
+                    inv = parse_inverter(sid, raw_inv, tz)
                     if inv.sn:
                         site.inverters[inv.sn] = inv
                 data.sites[sid] = site
