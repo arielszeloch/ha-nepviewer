@@ -101,6 +101,10 @@ class NepInverter:
     last_update: datetime | None
     modules: dict[int, NepModule] = field(default_factory=dict)
     history: dict[str, Any] | None = None  # latest point of today's history
+    # Lifetime energy reported by the cloud for the whole inverter (the value
+    # the NEPViewer app shows). Preferred over summing the PV inputs, whose
+    # counters lag behind and can be missing or 0 outside production hours.
+    reported_energy_total: float | None = None
 
     @property
     def power(self) -> float:
@@ -111,8 +115,17 @@ class NepInverter:
         return round(sum(m.energy_today or 0 for m in self.modules.values()), 3)
 
     @property
-    def energy_total(self) -> float:
-        return round(sum(m.energy_total or 0 for m in self.modules.values()), 3)
+    def energy_total(self) -> float | None:
+        """Lifetime energy, or None when the cloud gives no usable value.
+
+        Never 0: a drop to 0 would be recorded by HA as a meter reset.
+        """
+        if self.reported_energy_total:
+            return round(self.reported_energy_total, 3)
+        totals = [m.energy_total for m in self.modules.values()]
+        if not totals or any(t is None for t in totals):
+            return None
+        return round(sum(totals), 3) or None
 
 
 @dataclass
@@ -130,8 +143,12 @@ class NepSite:
         return round(sum(i.energy_today for i in self.inverters.values()), 3)
 
     @property
-    def energy_total(self) -> float:
-        return round(sum(i.energy_total for i in self.inverters.values()), 3)
+    def energy_total(self) -> float | None:
+        """Sum of inverter totals; None if any inverter has no valid total."""
+        totals = [i.energy_total for i in self.inverters.values()]
+        if not totals or any(t is None for t in totals):
+            return None
+        return round(sum(totals), 3)
 
 
 @dataclass
@@ -145,7 +162,18 @@ class NepData:
         return None
 
 
-def parse_inverter(sid: str, raw: dict[str, Any], tz: tzinfo) -> NepInverter:
+def site_inverter_summaries(raw_site: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Per-inverter summary (incl. lifetime totalPower) from the plant list."""
+    out: dict[str, dict[str, Any]] = {}
+    for item in raw_site.get("sn") or []:
+        if isinstance(item, dict) and item.get("sn"):
+            out[str(item["sn"]).upper()] = item
+    return out
+
+
+def parse_inverter(
+    sid: str, raw: dict[str, Any], tz: tzinfo, summary: dict[str, Any] | None = None
+) -> NepInverter:
     sn = str(raw.get("sn", "")).upper()
     inv = NepInverter(
         sn=sn,
@@ -171,6 +199,10 @@ def parse_inverter(sid: str, raw: dict[str, Any], tz: tzinfo) -> NepInverter:
         )
         latest = max(latest, _num(m.get("lastUpdateTime")) or 0)
     inv.last_update = _ts(latest, tz)
+    if summary:
+        inv.reported_energy_total = to_kwh(
+            summary.get("totalPower"), summary.get("totalPowerUnit")
+        )
     return inv
 
 
@@ -202,8 +234,10 @@ class NepViewerCoordinator(DataUpdateCoordinator[NepData]):
                     continue
                 site = NepSite(sid=sid, name=rs.get("siteName") or sid)
                 tz = site_timezone(rs)
+                summaries = site_inverter_summaries(rs)
                 for raw_inv in await self.api.get_site_modules(sid):
-                    inv = parse_inverter(sid, raw_inv, tz)
+                    sn = str(raw_inv.get("sn", "")).upper()
+                    inv = parse_inverter(sid, raw_inv, tz, summaries.get(sn))
                     if inv.sn:
                         site.inverters[inv.sn] = inv
                 data.sites[sid] = site
