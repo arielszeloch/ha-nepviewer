@@ -13,11 +13,11 @@ It logs in with your NEPViewer account and **discovers every plant, microinverte
 
 | Device | Sensors |
 |---|---|
-| **Plant** | Power (W), Energy today (kWh), Energy total (kWh) — sums over all inverters |
+| **Plant** | Power (W), Energy today, Energy total (sums over all inverters); Energy yesterday, Energy this month, Energy this year, CO2 avoided (kg); disabled by default: Trees equivalent, Car distance equivalent (km), Oil saved (bbl) |
 | **Microinverter** | Power, Energy today, Energy total, Temperature, AC voltage, AC frequency, DC voltage, DC current, Status, Alert, Last report |
 | **Each PV input (panel)** | PV1/PV2… power, energy today, energy total |
 
-Energy sensors use `state_class: total_increasing`, so they work in the **Energy dashboard** (use *Energy total* of the plant or of each inverter).
+Energy sensors use `state_class: total_increasing`, so they work in the **Energy dashboard** (use *Energy total* of the plant or of each inverter). Lifetime totals never go backwards: a lower or missing reading from the cloud keeps the last valid value, so long-term statistics get no fake meter resets. *Energy this month / this year* use `state_class: total` with a `last_reset` at the start of the period.
 
 Temperature / AC / DC readings come from the inverter's latest report of the current day; they are `unknown` while an inverter hasn't reported today (night, offline).
 
@@ -51,7 +51,11 @@ You can use your regular NEPViewer login, but NEPViewer allows only one active s
 
 ## How it works
 
-Per poll: one request lists plants, one request per plant returns all inverters with per-input power/energy. Detailed readings (temperature, voltages) are fetched per inverter only when that inverter has sent a new report.
+Per poll: one request lists plants (with each inverter's lifetime total), one request per plant returns all inverters with per-input power/energy, and one request per plant returns the plant statistics (yesterday / month / year, environmental benefits). Detailed readings (temperature, voltages) are fetched per inverter only when that inverter has sent a new report.
+
+## Languages
+
+English, Polish, German, Portuguese (Brazil).
 
 ## Troubleshooting
 
@@ -68,6 +72,14 @@ logger:
 ### PL — skrót
 
 Integracja HA dla mikroinwerterów NEP przez chmurę NEPViewer. Instalacja przez HACS (repozytorium niestandardowe → Integracja), potem *Dodaj integrację → NEPViewer* i logowanie kontem NEPViewer. Wszystkie instalacje, mikroinwertery i wejścia PV wykrywane są automatycznie.
+
+## Development
+
+Parsing helpers have unit tests that run without Home Assistant:
+
+```sh
+python -m unittest discover -s tests -v
+```
 
 ## License
 

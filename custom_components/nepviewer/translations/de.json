@@ -1,0 +1,107 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "NEPViewer",
+        "description": "Melde dich mit deinem NEPViewer-Konto (user.nepviewer.com) an.",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Erneut anmelden",
+        "description": "Gib das aktuelle NEPViewer-Passwort ein.",
+        "data": {
+          "password": "Passwort"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ungültige E-Mail oder ungültiges Passwort",
+      "cannot_connect": "Verbindung zu NEPViewer nicht möglich",
+      "unknown": "Unerwarteter Fehler"
+    },
+    "abort": {
+      "already_configured": "Dieses Konto ist bereits eingerichtet",
+      "reauth_successful": "Erneute Anmeldung erfolgreich"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "NEPViewer",
+        "data": {
+          "scan_interval": "Abfrageintervall (s)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "power": {
+        "name": "Leistung"
+      },
+      "energy_today": {
+        "name": "Energie heute"
+      },
+      "energy_total": {
+        "name": "Energie gesamt"
+      },
+      "status": {
+        "name": "Status"
+      },
+      "alert": {
+        "name": "Alarm"
+      },
+      "last_update": {
+        "name": "Letzte Meldung"
+      },
+      "temperature": {
+        "name": "Temperatur"
+      },
+      "ac_voltage": {
+        "name": "AC-Spannung"
+      },
+      "ac_frequency": {
+        "name": "AC-Frequenz"
+      },
+      "dc_voltage": {
+        "name": "DC-Spannung"
+      },
+      "dc_current": {
+        "name": "DC-Strom"
+      },
+      "pv_power": {
+        "name": "PV{pv} Leistung"
+      },
+      "pv_energy_today": {
+        "name": "PV{pv} Energie heute"
+      },
+      "pv_energy_total": {
+        "name": "PV{pv} Energie gesamt"
+      },
+      "energy_yesterday": {
+        "name": "Energie gestern"
+      },
+      "energy_month": {
+        "name": "Energie diesen Monat"
+      },
+      "energy_year": {
+        "name": "Energie dieses Jahr"
+      },
+      "co2_avoided": {
+        "name": "Vermiedenes CO2"
+      },
+      "trees_equivalent": {
+        "name": "Entspricht Bäumen"
+      },
+      "car_distance_equivalent": {
+        "name": "Entspricht Autokilometern"
+      },
+      "oil_saved": {
+        "name": "Eingespartes Öl"
+      }
+    }
+  }
+}

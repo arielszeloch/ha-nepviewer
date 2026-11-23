@@ -15,42 +15,9 @@ from homeassistant.util import dt as dt_util
 
 from .api import NepViewerApi, NepViewerAuthError, NepViewerError
 from .const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .parse import SiteOverview, num as _num, parse_overview, to_kwh, to_w
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _num(value: Any) -> float | None:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def to_kwh(value: Any, unit: Any) -> float | None:
-    """Normalise an energy value to kWh (API switches units for big numbers)."""
-    v = _num(value)
-    if v is None:
-        return None
-    u = str(unit or "kWh").strip().lower()
-    if u == "mwh":
-        return v * 1000
-    if u == "gwh":
-        return v * 1_000_000
-    if u == "wh":
-        return v / 1000
-    return v
-
-
-def to_w(value: Any, unit: Any) -> float | None:
-    v = _num(value)
-    if v is None:
-        return None
-    u = str(unit or "W").strip().lower()
-    if u == "kw":
-        return v * 1000
-    if u == "mw":
-        return v * 1_000_000
-    return v
 
 
 def _ts(value: Any, tz: tzinfo) -> datetime | None:
@@ -133,6 +100,7 @@ class NepSite:
     sid: str
     name: str
     inverters: dict[str, NepInverter] = field(default_factory=dict)
+    overview: SiteOverview | None = None  # period energy + benefits
 
     @property
     def power(self) -> float:
@@ -240,6 +208,7 @@ class NepViewerCoordinator(DataUpdateCoordinator[NepData]):
                     inv = parse_inverter(sid, raw_inv, tz, summaries.get(sn))
                     if inv.sn:
                         site.inverters[inv.sn] = inv
+                site.overview = await self._site_overview(sid)
                 data.sites[sid] = site
         except NepViewerAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
@@ -251,6 +220,16 @@ class NepViewerCoordinator(DataUpdateCoordinator[NepData]):
             for inv in site.inverters.values():
                 inv.history = await self._latest_history(inv, today)
         return data
+
+    async def _site_overview(self, sid: str) -> SiteOverview | None:
+        """Plant statistics; a failure here only leaves those sensors unknown."""
+        try:
+            return parse_overview(await self.api.get_site_overview(sid))
+        except NepViewerAuthError:
+            raise
+        except NepViewerError as err:
+            _LOGGER.debug("Overview for %s failed: %s", sid, err)
+            return None
 
     async def _latest_history(self, inv: NepInverter, today) -> dict[str, Any] | None:
         """Latest detailed reading (temp, AC V, Hz, DC V/A) — only if from today.

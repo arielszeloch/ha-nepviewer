@@ -80,6 +80,27 @@
       },
       "pv_energy_total": {
         "name": "PV{pv} energia całkowita"
+      },
+      "energy_yesterday": {
+        "name": "Energia wczoraj"
+      },
+      "energy_month": {
+        "name": "Energia w tym miesiącu"
+      },
+      "energy_year": {
+        "name": "Energia w tym roku"
+      },
+      "co2_avoided": {
+        "name": "Uniknięta emisja CO2"
+      },
+      "trees_equivalent": {
+        "name": "Równowartość drzew"
+      },
+      "car_distance_equivalent": {
+        "name": "Równowartość przejechanych km"
+      },
+      "oil_saved": {
+        "name": "Zaoszczędzona ropa"
       }
     }
   }

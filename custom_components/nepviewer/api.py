@@ -42,6 +42,8 @@ class NepViewerApi:
         self._email = email
         self._password = password
         self._token: str | None = None
+        # Sent as the "app" header, like the web app does after sign-in.
+        self._company_id = 0
 
     async def login(self) -> None:
         data = await self._post(
@@ -51,6 +53,10 @@ class NepViewerApi:
         if not token:
             raise NepViewerAuthError("No token in sign-in response")
         self._token = token
+        try:
+            self._company_id = int((data.get("userInfo") or {}).get("companyId") or 0)
+        except (TypeError, ValueError):
+            self._company_id = 0
 
     async def _post(
         self, path: str, payload: dict[str, Any], auth: bool = True, retry: bool = True
@@ -64,7 +70,7 @@ class NepViewerApi:
             "Content-Type": "application/json",
             "client": "web",
             "oem": "NEP",
-            "app": "0",
+            "app": str(self._company_id),
             "lan": "3",
             "sign": make_sign(body),
         }
@@ -124,3 +130,7 @@ class NepViewerApi:
         """Inverter readings for one day (YYYY-MM-DD), oldest first."""
         data = await self._post("v2/device/history", {"sid": sid, "sn": sn.lower(), "date": date})
         return data.get("list") or []
+
+    async def get_site_overview(self, sid: str) -> dict[str, Any]:
+        """Plant statistics: energy per period and environmental benefits."""
+        return await self._post("v2/site/overview", {"sid": sid})

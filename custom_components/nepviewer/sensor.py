@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 import inspect
 import logging
 from typing import Any
@@ -21,6 +22,8 @@ from homeassistant.const import (
     UnitOfElectricPotential,
     UnitOfEnergy,
     UnitOfFrequency,
+    UnitOfLength,
+    UnitOfMass,
     UnitOfPower,
     UnitOfTemperature,
 )
@@ -29,6 +32,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from . import NepViewerConfigEntry
 from .const import DOMAIN, MANUFACTURER
@@ -48,6 +52,8 @@ class NepSensorDescription(SensorEntityDescription):
     value_fn: Callable[[Any], Any]
     # Lifetime counter: never allowed to go backwards (see NepTotalMixin).
     monotonic: bool = False
+    # Period counter (state_class total): start of the current period.
+    last_reset_fn: Callable[[], datetime] | None = None
 
 
 POWER = dict(
@@ -67,6 +73,29 @@ def _hist(key: str) -> Callable[[NepInverter], Any]:
     return lambda inv: (inv.history or {}).get(key)
 
 
+def _ov(key: str) -> Callable[[NepSite], Any]:
+    return lambda site: getattr(site.overview, key) if site.overview else None
+
+
+def _start_of_month() -> datetime:
+    return dt_util.start_of_local_day().replace(day=1)
+
+
+def _start_of_year() -> datetime:
+    return dt_util.start_of_local_day().replace(month=1, day=1)
+
+
+# Month/year energy uses state_class total + last_reset (not total_increasing):
+# a transient lower value from the cloud is then subtracted and added back in
+# the statistics instead of being recorded as a meter reset.
+PERIOD_ENERGY = dict(
+    native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+    device_class=SensorDeviceClass.ENERGY,
+    state_class=SensorStateClass.TOTAL,
+    suggested_display_precision=2,
+)
+
+
 SITE_SENSORS: tuple[NepSensorDescription, ...] = (
     NepSensorDescription(key="power", translation_key="power", value_fn=lambda s: s.power, **POWER),
     NepSensorDescription(
@@ -75,6 +104,46 @@ SITE_SENSORS: tuple[NepSensorDescription, ...] = (
     NepSensorDescription(
         key="energy_total", translation_key="energy_total", value_fn=lambda s: s.energy_total,
         monotonic=True, **ENERGY
+    ),
+)
+
+# Plant-only statistics from v2/site/overview.
+SITE_ONLY_SENSORS: tuple[NepSensorDescription, ...] = (
+    NepSensorDescription(
+        key="energy_yesterday", translation_key="energy_yesterday",
+        value_fn=_ov("energy_yesterday"),
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY, suggested_display_precision=2,
+    ),
+    NepSensorDescription(
+        key="energy_month", translation_key="energy_month", value_fn=_ov("energy_month"),
+        last_reset_fn=_start_of_month, **PERIOD_ENERGY,
+    ),
+    NepSensorDescription(
+        key="energy_year", translation_key="energy_year", value_fn=_ov("energy_year"),
+        last_reset_fn=_start_of_year, **PERIOD_ENERGY,
+    ),
+    NepSensorDescription(
+        key="co2_avoided", translation_key="co2_avoided", value_fn=_ov("co2_kg"),
+        native_unit_of_measurement=UnitOfMass.KILOGRAMS, device_class=SensorDeviceClass.WEIGHT,
+        state_class=SensorStateClass.TOTAL_INCREASING, suggested_display_precision=1,
+        monotonic=True,
+    ),
+    NepSensorDescription(
+        key="trees_equivalent", translation_key="trees_equivalent", value_fn=_ov("trees"),
+        native_unit_of_measurement="trees", state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=1, monotonic=True, entity_registry_enabled_default=False,
+    ),
+    NepSensorDescription(
+        key="car_distance_equivalent", translation_key="car_distance_equivalent",
+        value_fn=_ov("car_km"), native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE, state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=0, monotonic=True, entity_registry_enabled_default=False,
+    ),
+    NepSensorDescription(
+        key="oil_saved", translation_key="oil_saved", value_fn=_ov("oil_bbl"),
+        native_unit_of_measurement="bbl", state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=2, monotonic=True, entity_registry_enabled_default=False,
     ),
 )
 
@@ -146,7 +215,7 @@ async def async_setup_entry(
             site_device = device_reg.async_get_or_create(
                 config_entry_id=entry.entry_id, **_site_device(site)
             )
-            for desc in SITE_SENSORS:
+            for desc in (*SITE_SENSORS, *SITE_ONLY_SENSORS):
                 uid = f"{site.sid}_{desc.key}"
                 if uid not in known:
                     known.add(uid)
@@ -197,6 +266,11 @@ class _NepEntity(CoordinatorEntity[NepViewerCoordinator], SensorEntity):
     def native_value(self) -> Any:
         src = self._source()
         return None if src is None else self.entity_description.value_fn(src)
+
+    @property
+    def last_reset(self) -> datetime | None:
+        fn = self.entity_description.last_reset_fn
+        return fn() if fn else None
 
 
 class NepTotalMixin(RestoreSensor):

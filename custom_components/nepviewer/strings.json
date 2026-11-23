@@ -80,6 +80,27 @@
       },
       "pv_energy_total": {
         "name": "PV{pv} energy total"
+      },
+      "energy_yesterday": {
+        "name": "Energy yesterday"
+      },
+      "energy_month": {
+        "name": "Energy this month"
+      },
+      "energy_year": {
+        "name": "Energy this year"
+      },
+      "co2_avoided": {
+        "name": "CO2 avoided"
+      },
+      "trees_equivalent": {
+        "name": "Trees equivalent"
+      },
+      "car_distance_equivalent": {
+        "name": "Car distance equivalent"
+      },
+      "oil_saved": {
+        "name": "Oil saved"
       }
     }
   }
