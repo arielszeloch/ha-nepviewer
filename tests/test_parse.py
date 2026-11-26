@@ -85,5 +85,43 @@ class OverviewTests(unittest.TestCase):
         self.assertIsNone(ov.co2_kg)
 
 
+class DailyEnergyCounterTest(unittest.TestCase):
+    def test_counts_daily_increments_across_days(self):
+        c = parse.DailyEnergyCounter()
+        for day, today in [("2026-11-25", 0.004), ("2026-11-25", 0.9), ("2026-11-25", 1.8),
+                           ("2026-11-26", 0.004), ("2026-11-26", 0.5)]:
+            c.update(day, today)
+        self.assertAlmostEqual(c.total, 2.3)
+
+    def test_stale_value_after_midnight_not_counted_twice(self):
+        # Before the first report of a new day the cloud still shows
+        # yesterday's daily value with yesterday's report time.
+        c = parse.DailyEnergyCounter()
+        c.update("2026-11-25", 1.8)
+        c.update("2026-11-25", 1.8)
+        c.update("2026-11-25", 0)  # glitch / reset to 0 before the new day
+        c.update("2026-11-25", 1.8)
+        self.assertAlmostEqual(c.total, 1.8)
+
+    def test_ignores_missing_and_older_days(self):
+        c = parse.DailyEnergyCounter()
+        self.assertFalse(c.update(None, 1.0))
+        self.assertFalse(c.update("2026-11-25", None))
+        c.update("2026-11-26", 0.5)
+        self.assertFalse(c.update("2026-11-25", 3.0))
+        self.assertAlmostEqual(c.total, 0.5)
+
+    def test_round_trip_and_invalid_restore(self):
+        c = parse.DailyEnergyCounter()
+        c.update("2026-11-26", 0.7)
+        r = parse.DailyEnergyCounter.from_dict(c.as_dict())
+        self.assertEqual(r, c)
+        r.update("2026-11-26", 1.0)
+        self.assertAlmostEqual(r.total, 1.0)
+        self.assertIsNone(parse.DailyEnergyCounter.from_dict(None))
+        # 0.2.0 restore data has no counter state
+        self.assertIsNone(parse.DailyEnergyCounter.from_dict({"native_value": 1912.7}))
+
+
 if __name__ == "__main__":
     unittest.main()

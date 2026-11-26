@@ -106,3 +106,49 @@ def parse_overview(data: dict[str, Any] | None) -> SiteOverview | None:
         car_km=_scaled(benefit.get("car"), benefit.get("carUnit")),
         oil_bbl=_scaled(benefit.get("oil"), benefit.get("oilUnit")),
     )
+
+
+@dataclass
+class DailyEnergyCounter:
+    """Lifetime energy of one PV input, accumulated from its daily energy.
+
+    The cloud has no real lifetime counter per PV input: its per-module
+    `totalPower` is the inverter total split by each input's share of
+    today's energy, so it jumps up and down. This counter adds up the
+    increments of the input's `todayPower` instead.
+
+    `day` is the date the daily value belongs to (the input's last report);
+    a new day starts counting from 0. Decreases within a day are ignored.
+    Days with no update at all (e.g. HA switched off) are not counted.
+    """
+
+    total: float = 0.0
+    day: str | None = None  # ISO date of `seen`
+    seen: float = 0.0  # last daily value counted for `day`
+
+    def update(self, day: str | None, today: float | None) -> bool:
+        """Count a new daily reading; True if the total changed."""
+        if day is None or today is None or today < 0:
+            return False
+        if day != self.day:
+            if self.day is not None and day < self.day:
+                return False  # stale report from an older day
+            self.day, self.seen = day, 0.0
+        if today <= self.seen:
+            return False
+        self.total = round(self.total + today - self.seen, 4)
+        self.seen = today
+        return True
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"total": self.total, "day": self.day, "seen": self.seen}
+
+    @classmethod
+    def from_dict(cls, data: Any) -> DailyEnergyCounter | None:
+        if not isinstance(data, dict):
+            return None
+        total, seen = num(data.get("total")), num(data.get("seen"))
+        day = data.get("day")
+        if total is None or seen is None or not (day is None or isinstance(day, str)):
+            return None
+        return cls(total=total, day=day, seen=seen)

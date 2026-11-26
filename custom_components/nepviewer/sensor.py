@@ -31,12 +31,14 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import ExtraStoredData
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from . import NepViewerConfigEntry
 from .const import DOMAIN, MANUFACTURER
 from .coordinator import NepInverter, NepModule, NepSite, NepViewerCoordinator
+from .parse import DailyEnergyCounter
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -193,9 +195,9 @@ MODULE_SENSORS: tuple[NepSensorDescription, ...] = (
     NepSensorDescription(
         key="energy_today", translation_key="pv_energy_today", value_fn=lambda m: m.energy_today, **ENERGY
     ),
+    # Counted locally by NepModuleCounterSensor; value_fn is not used.
     NepSensorDescription(
-        key="energy_total", translation_key="pv_energy_total", value_fn=lambda m: m.energy_total,
-        monotonic=True, **ENERGY
+        key="energy_total", translation_key="pv_energy_total", value_fn=lambda m: None, **ENERGY
     ),
 )
 
@@ -234,11 +236,12 @@ async def async_setup_entry(
                         uid = f"{inv.sn}_pv{mod.addr}_{desc.key}"
                         if uid not in known:
                             known.add(uid)
-                            new.append(
-                                _cls(NepModuleSensor, desc)(
-                                    coordinator, inv.sn, mod.addr, desc, uid, inv_device
-                                )
+                            cls = (
+                                NepModuleCounterSensor
+                                if desc.key == "energy_total"
+                                else _cls(NepModuleSensor, desc)
                             )
+                            new.append(cls(coordinator, inv.sn, mod.addr, desc, uid, inv_device))
         if new:
             async_add_entities(new)
 
@@ -360,6 +363,60 @@ class NepModuleSensor(_NepEntity):
     def _source(self) -> NepModule | None:
         inv = self.coordinator.data.inverter(self._sn)
         return inv.modules.get(self._addr) if inv else None
+
+
+class _CounterStoredData(ExtraStoredData):
+    """Sensor restore data plus the PV counter state."""
+
+    def __init__(self, sensor_data: ExtraStoredData, counter: DailyEnergyCounter) -> None:
+        self._sensor_data = sensor_data
+        self._counter = counter
+
+    def as_dict(self) -> dict[str, Any]:
+        return {**self._sensor_data.as_dict(), "nep_counter": self._counter.as_dict()}
+
+
+class NepModuleCounterSensor(RestoreSensor, NepModuleSensor):
+    """Lifetime energy of a PV input, counted from its daily energy.
+
+    The cloud's per-input `totalPower` is the inverter total split by each
+    input's share of today's energy, so it is not a counter (issue #2).
+    Values restored from 0.2.0 or older (without the counter state) are
+    discarded and counting starts again from 0.
+    """
+
+    def __init__(self, *args: Any) -> None:
+        super().__init__(*args)
+        self._counter = DailyEnergyCounter()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_extra_data()
+        restored = DailyEnergyCounter.from_dict(last.as_dict().get("nep_counter")) if last else None
+        if restored is not None:
+            self._counter = restored
+        else:
+            _LOGGER.debug("%s: PV energy counter starts at 0", self.entity_id)
+        self._count()
+
+    def _count(self) -> None:
+        if (mod := self._source()) is None:
+            return
+        day = mod.last_update.date().isoformat() if mod.last_update else None
+        self._counter.update(day, mod.energy_today)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self._count()
+        super()._handle_coordinator_update()
+
+    @property
+    def native_value(self) -> float:
+        return round(self._counter.total, 3)
+
+    @property
+    def extra_restore_state_data(self) -> ExtraStoredData:
+        return _CounterStoredData(super().extra_restore_state_data, self._counter)
 
 
 def _inverter_device(inv: NepInverter, site_device_id: str) -> DeviceInfo:

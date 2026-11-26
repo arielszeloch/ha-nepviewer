@@ -51,7 +51,10 @@ class NepModule:
     addr: int
     power: float | None
     energy_today: float | None
+    # Cloud value: the inverter total split by today's share of each input,
+    # NOT a real counter (see DailyEnergyCounter). Only used for the sum.
     energy_total: float | None
+    last_update: datetime | None = None
 
 
 @dataclass
@@ -70,7 +73,7 @@ class NepInverter:
     history: dict[str, Any] | None = None  # latest point of today's history
     # Lifetime energy reported by the cloud for the whole inverter (the value
     # the NEPViewer app shows). Preferred over summing the PV inputs, whose
-    # counters lag behind and can be missing or 0 outside production hours.
+    # values are only a split of this total and can be missing or 0.
     reported_energy_total: float | None = None
 
     @property
@@ -164,6 +167,7 @@ def parse_inverter(
             power=to_w(m.get("now"), m.get("nowUnit")),
             energy_today=to_kwh(m.get("todayPower"), m.get("todayPowerUnit")),
             energy_total=to_kwh(m.get("totalPower"), m.get("totalPowerUnit")),
+            last_update=_ts(m.get("lastUpdateTime"), tz),
         )
         latest = max(latest, _num(m.get("lastUpdateTime")) or 0)
     inv.last_update = _ts(latest, tz)

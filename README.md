@@ -19,6 +19,8 @@ It logs in with your NEPViewer account and **discovers every plant, microinverte
 
 Energy sensors use `state_class: total_increasing`, so they work in the **Energy dashboard** (use *Energy total* of the plant or of each inverter). Lifetime totals never go backwards: a lower or missing reading from the cloud keeps the last valid value, so long-term statistics get no fake meter resets. *Energy this month / this year* use `state_class: total` with a `last_reset` at the start of the period.
 
+**PV input energy total** is counted by Home Assistant from that input's *energy today*, starting when the sensor was created (or when you updated to 0.2.1). The NEPViewer cloud has no real lifetime counter per PV input: its per-input total is just the inverter total split by each input's share of today's energy, so it jumps up and down. Days when Home Assistant is not running are not counted; the inverter and plant totals are always the cloud's own counters.
+
 Temperature / AC / DC readings come from the inverter's latest report of the current day; they are `unknown` while an inverter hasn't reported today (night, offline).
 
 ## Installation
